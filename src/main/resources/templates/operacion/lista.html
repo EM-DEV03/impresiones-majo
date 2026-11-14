@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head(${tipo == 'ventas' ? 'Ventas' : 'Compras'})}"></head>
+
+<body>
+    <aside th:replace="~{fragments :: nav}"></aside>
+    <main class="workspace">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">OPERACIÓN DIARIA</p>
+                <h1 th:text="${tipo == 'ventas' ? 'Ventas' : 'Compras'}"></h1>
+                <p class="muted">Consulta, revisa y confirma tus operaciones.</p>
+            </div><a class="btn btn-primary" th:href="@{/{tipo}/nueva(tipo=${tipo})}">+ Nueva operación</a>
+        </header>
+        <div th:replace="~{fragments :: flash}"></div>
+        <section class="surface">
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Fecha</th>
+                            <th th:text="${tipo == 'ventas' ? 'Usuario' : 'Proveedor'}"></th>
+                            <th>Estado</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="r:${filas}">
+                            <td th:text="${'#' + r.id}"></td>
+                            <td th:text="${r.fecha}"></td>
+                            <td th:text="${tipo == 'ventas' ? r.usuario : r.proveedor}"></td>
+                            <td><span class="status" th:text="${r.estado}"></span></td>
+                            <td th:text="${@formato.cop(r.total)}"></td>
+                            <td><a class="btn btn-sm btn-outline-primary"
+                                    th:href="@{/{tipo}/{id}(tipo=${tipo},id=${r.id})}">Ver detalle</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="empty" th:if="${#lists.isEmpty(filas)}">Todavía no hay operaciones registradas.</p>
+            <p class="small muted">Últimas 500 operaciones. Los reportes incluyen todo el intervalo seleccionado.</p>
+        </section>
+    </main>
+</body>
+
+</html>

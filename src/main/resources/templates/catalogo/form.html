@@ -1,0 +1,23 @@
+<!DOCTYPE html><html lang="es" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments :: head(${def.titulo})}"></head><body><aside th:replace="~{fragments :: nav}"></aside><main class="workspace">
+<header class="page-header"><div><p class="eyebrow" th:text="${def.titulo}"></p><h1 th:text="${id == null ? 'Nuevo registro' : 'Editar registro'}"></h1></div><a class="btn btn-outline-secondary" th:href="@{/catalogos/{ruta}(ruta=${def.ruta})}">Volver</a></header>
+<section class="surface form-surface"><form th:action="@{/catalogos/{ruta}/guardar(ruta=${def.ruta})}" method="post"><input type="hidden" name="id" th:value="${id}">
+<div class="form-grid"><div class="field" th:each="c:${def.campos}">
+<label th:for="${c.nombre}" th:text="${c.etiqueta + (c.requerido ? ' *' : '')}"></label>
+<small class="muted" th:if="${c.nombre == 'stock_minimo'}">Solo es una alerta para reponer. Este número no suma unidades al inventario.</small>
+<select class="form-select" th:if="${c.tipo == 'select'}" th:name="${c.nombre}" th:id="${c.nombre}" required><option th:each="op:${c.valores()}" th:value="${op}" th:text="${op}" th:selected="${op == registro[c.nombre]}"></option></select>
+<select class="form-select" th:if="${c.tipo == 'reference'}" th:name="${c.nombre}" th:id="${c.nombre}" th:required="${c.requerido}"><option value="">Seleccionar…</option><option th:each="op:${opciones[c.nombre]}" th:value="${op.id}" th:text="${op.nombre}" th:selected="${op.id == registro[c.nombre]}"></option></select>
+<input class="form-check-input" th:if="${c.tipo == 'checkbox'}" type="checkbox" th:name="${c.nombre}" th:id="${c.nombre}" value="true" th:checked="${@formato.activo(registro[c.nombre])}">
+<input class="form-control" th:if="${c.tipo == 'text' or c.tipo == 'email'}" th:type="${c.tipo}" th:name="${c.nombre}" th:id="${c.nombre}" th:value="${registro[c.nombre]}" th:maxlength="${c.max}" th:required="${c.requerido}">
+<small class="muted" th:if="${c.nombre == 'unidad_medida'}">Escribe UNIDAD si lo vendes de uno en uno, PAQUETE si vendes el paquete completo o RESMA si vendes la resma completa.</small>
+<input class="form-control money-input" th:if="${c.tipo == 'money'}" type="text" inputmode="decimal" maxlength="32" placeholder="1.300" th:name="${c.nombre}" th:id="${c.nombre}" th:value="${@formato.importe(registro[c.nombre])}" required>
+<input class="form-control" th:if="${c.tipo == 'quantity'}" type="number" min="0" step="1" th:name="${c.nombre}" th:id="${c.nombre}" th:value="${@formato.cantidad(registro[c.nombre] ?: 0)}" required>
+</div></div>
+<section class="stock-panel mt-4" th:if="${def.ruta == 'productos' and id == null}">
+<h2>¿Cuántas unidades tienes?</h2><p class="muted">Si ya tienes mercancía, registra aquí la cantidad real. Por ejemplo: 9 cartulinas.</p>
+<div class="form-grid"><div class="field"><label for="unidades_iniciales">Unidades que tienes al comenzar</label><input class="form-control" type="number" min="0" step="1" id="unidades_iniciales" name="unidades_iniciales" value="0" required></div>
+<div class="field"><label for="costo_inicial">¿Cuánto te costó cada unidad? (COP)</label><input class="form-control money-input" type="text" inputmode="decimal" maxlength="32" placeholder="1.300" id="costo_inicial" name="costo_inicial"><small class="muted">Obligatorio si registras unidades iniciales. Es el costo de una unidad, no de todo el lote.</small></div></div>
+<p class="small muted mt-3">La cantidad se sumará al guardar y quedará registrada como entrada inicial. No registres otra vez la misma mercancía como compra.</p></section>
+<section class="stock-panel mt-4" th:if="${def.ruta == 'productos' and id != null}"><h2>Unidades disponibles: <span th:text="${@formato.cantidad(registro.stock_actual)}"></span></h2>
+<p>Editar el precio o el aviso de reposición no cambia las existencias.</p><a class="btn btn-outline-primary" th:if="${@acceso.tiene('STOCK_AJUSTAR')}" th:href="@{/inventario(productoId=${id})} + '#ajustes'">Añadir o retirar unidades</a></section>
+<div class="form-actions"><button class="btn btn-primary">Guardar cambios</button><a class="btn btn-light" th:href="@{/catalogos/{ruta}(ruta=${def.ruta})}">Cancelar</a></div></form></section>
+</main></body></html>

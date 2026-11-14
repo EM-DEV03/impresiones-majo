@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head('Panel principal')}"></head>
+
+<body>
+    <aside th:replace="~{fragments :: nav}"></aside>
+    <main class="workspace">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">IMPRESIONES MAJO</p>
+                <h1>Panel principal</h1>
+                <p class="muted">Todo en su lugar para seguir creando.</p>
+            </div><a class="btn btn-primary" th:if="${@acceso.tiene('VENTAS_CREAR')}" th:href="@{/ventas/nueva}">+ Nueva
+                venta</a>
+        </header>
+        <div th:replace="~{fragments :: flash}"></div>
+        <div class="metric-grid">
+            <article class="metric accent"><span
+                    th:text="${@acceso.tiene('VENTAS_VER_TODAS') ? 'Ventas confirmadas de hoy' : 'Mis ventas confirmadas de hoy'}"></span><strong
+                    th:text="${@formato.cop(panel.ventasHoy)}"></strong><small>Valores netos, después de
+                    descuentos</small></article>
+            <article class="metric"><span>Productos activos</span><strong
+                    th:text="${panel.productos}"></strong><small>Tu catálogo de papelería e insumos</small></article>
+            <article class="metric"><span>Servicios disponibles</span><strong
+                    th:text="${panel.servicios}"></strong><small>Impresiones, copias y más</small></article>
+        </div>
+        <div class="dashboard-grid">
+            <section class="surface">
+                <div class="section-header">
+                    <h2>Existencias por reponer</h2><a th:href="@{/inventario}">Ver inventario</a>
+                </div>
+                <p class="empty" th:if="${#lists.isEmpty(panel.alertas)}">Todo al día. No hay productos bajo el mínimo.
+                </p>
+                <div class="stock-row" th:each="p:${panel.alertas}">
+                    <div><strong th:text="${p.nombre}"></strong><small class="muted d-block"
+                            th:text="${p.codigo}"></small></div><span class="badge text-bg-warning"
+                        th:text="${@formato.cantidad(p.stock_actual) + ' / mín. ' + @formato.cantidad(p.stock_minimo)}"></span>
+                </div>
+            </section>
+            <section class="surface">
+                <div class="section-header">
+                    <h2>Últimas ventas</h2><a th:href="@{/ventas}">Ver todas</a>
+                </div>
+                <p class="empty" th:if="${#lists.isEmpty(panel.recientes)}">Aquí aparecerán tus primeras ventas.</p>
+                <a class="sale-row" th:each="v:${panel.recientes}" th:href="@{/ventas/{id}(id=${v.id})}">
+                    <div><strong th:text="${'Venta #' + v.id}"></strong><small class="muted d-block"
+                            th:text="${v.estado}"></small></div><strong th:text="${@formato.cop(v.total)}"></strong>
+                </a>
+            </section>
+        </div>
+        <section class="tip"><strong>Tus existencias, claras desde el comienzo</strong>
+            <p>Al crear un producto, indica las unidades que ya tienes. Las compras confirmadas suman y las ventas confirmadas restan. El aviso de reposición solo te recuerda cuándo comprar más.</p>
+        </section>
+    </main>
+</body>
+
+</html>

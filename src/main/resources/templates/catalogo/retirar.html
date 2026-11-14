@@ -1,0 +1,7 @@
+<!DOCTYPE html><html lang="es" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments :: head('Revisar retiro de registros')}"></head><body><aside th:replace="~{fragments :: nav}"></aside><main class="workspace">
+<header class="page-header"><div><p class="eyebrow" th:text="${def.titulo}"></p><h1>Revisa antes de retirar</h1><p class="muted">Solo se retirarán los registros que seleccionaste.</p></div></header>
+<section class="surface"><p><strong>Conservamos tu historial.</strong> Los registros con relaciones o existencias se desactivan. Los que nunca se han utilizado se eliminan definitivamente. Si aparece una relación nueva antes de confirmar, se conservará también ese registro.</p>
+<form th:action="@{/catalogos/{ruta}/retirar(ruta=${def.ruta})}" method="post"><div class="table-responsive"><table class="table"><thead><tr><th>Registro</th><th>Qué ocurrirá</th></tr></thead><tbody><tr th:each="r:${filas}"><td><input type="hidden" name="ids" th:value="${r.id}"><strong th:text="${r.nombre}"></strong></td><td th:text="${r.accion == 'ELIMINAR' ? 'Eliminar: no tiene uso ni existencias' : 'Desactivar: conserva existencias, relaciones e historial'}"></td></tr></tbody></table></div>
+<label class="my-3"><input type="checkbox" name="confirmado" value="true" required> He revisado la lista y quiero retirar estos registros.</label>
+<button class="btn btn-primary">Confirmar retiro</button> <a class="btn btn-light" th:href="@{/catalogos/{ruta}(ruta=${def.ruta})}">Cancelar</a>
+</form></section></main></body></html>

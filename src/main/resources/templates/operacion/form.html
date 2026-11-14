@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head(${tipo == 'ventas' ? 'Nueva venta' : 'Nueva compra'})}"></head>
+
+<body>
+    <aside th:replace="~{fragments :: nav}"></aside>
+    <main class="workspace">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">REGISTRAR OPERACIÓN</p>
+                <h1 th:text="${tipo == 'ventas' ? 'Nueva venta' : 'Nueva compra'}"></h1>
+                <p class="muted">Agrega los artículos y revisa el borrador antes de confirmar.</p>
+            </div><a class="btn btn-outline-secondary" th:href="@{/{tipo}(tipo=${tipo})}">Volver</a>
+        </header>
+        <form class="operation-form" th:action="@{/{tipo}/crear(tipo=${tipo})}" method="post"
+            th:attr="data-tipo=${tipo}">
+            <section class="surface">
+                <div class="form-grid">
+                    <div class="field" th:if="${tipo == 'compras'}"><label for="proveedorId">Proveedor *</label><select
+                            class="form-select" name="proveedorId" id="proveedorId" required>
+                            <option value="">Seleccionar…</option>
+                            <option th:each="p:${proveedores}" th:value="${p.id}" th:text="${p.nombre}"></option>
+                        </select></div>
+                    <div th:replace="~{fragments :: pagos('metodoPago')}"></div>
+                </div>
+                <div class="section-header mt-4">
+                    <button class="btn btn-outline-secondary btn-sm refresh-stock" type="button" th:if="${tipo == 'ventas'}" th:attr="data-url=@{/inventario/disponibles}">Actualizar existencias</button>
+                    <h2>Detalle de artículos</h2><button class="btn btn-outline-primary btn-sm add-line" type="button">+
+                        Agregar línea</button>
+                </div>
+                <div class="operation-lines">
+                    <div class="operation-line">
+                        <div class="field"><label>Producto<select class="form-select product-choice"
+                                    name="lineas[0].productoId">
+                                    <option value="">Seleccionar producto…</option>
+                                    <option th:each="p:${productos}" th:value="${p.id}"
+                                        th:attr="data-precio=${p.precio_venta},data-stock=${p.stock_actual}"
+                                        th:text="${p.codigo + ' · ' + p.nombre + ' (stock: ' + @formato.cantidad(p.stock_actual) + ')'}">
+                                    </option>
+                                </select></label></div>
+                        <div class="field" th:if="${tipo == 'ventas'}"><label>O servicio<select
+                                    class="form-select service-choice" name="lineas[0].servicioId">
+                                    <option value="">Seleccionar servicio…</option>
+                                    <option th:each="s:${servicios}" th:value="${s.id}"
+                                        th:attr="data-precio=${s.precio_unitario}"
+                                        th:text="${s.nombre + ' · ' + s.unidad_cobro + ' · ' + @formato.cop(s.precio_unitario)}">
+                                    </option>
+                                </select></label></div>
+                        <div class="field quantity-field"><label>Cantidad<input class="form-control line-quantity"
+                                    type="number" name="lineas[0].cantidad" min="1" step="1" value="1"
+                                    required></label><small class="muted stock-available" th:if="${tipo == 'ventas'}" aria-live="polite"></small></div>
+                        <div class="field" th:if="${tipo == 'compras'}"><label>Costo unitario (COP)<input
+                                    class="form-control line-cost" type="text" inputmode="decimal" data-money="true" maxlength="32" name="lineas[0].costoUnitario" required></label></div>
+                        <div class="line-total muted" aria-live="polite">0 COP</div><button
+                            class="btn btn-outline-danger remove-line" type="button"
+                            aria-label="Quitar línea">×</button>
+                    </div>
+                </div>
+                <p class="small muted">Selecciona un solo artículo por línea y reúne las cantidades del mismo artículo.
+                    Máximo 100 líneas.</p>
+                <p class="small muted stock-refresh-status" th:if="${tipo == 'ventas'}" aria-live="polite">Las existencias se descuentan al confirmar la venta. Guardar un borrador no las descuenta.</p>
+            </section>
+            <section class="surface mt-4">
+                <div class="form-grid">
+                    <div class="field"><label for="descuento">Descuento total (COP)</label><input class="form-control"
+                            id="descuento" name="descuento" type="text" inputmode="decimal" data-money="true"
+                            maxlength="32" placeholder="1.300" value="0" required></div>
+                    <div class="field" th:if="${tipo == 'ventas'}"><label for="valorRecibido">Valor recibido (COP;
+                            obligatorio en efectivo)</label><input class="form-control" id="valorRecibido"
+                            name="valorRecibido" type="text" inputmode="decimal" data-money="true" maxlength="32"
+                            placeholder="1.300"></div>
+                    <div class="field"><label for="observaciones">Observaciones</label><textarea class="form-control"
+                            id="observaciones" name="observaciones" maxlength="500" rows="2"></textarea></div>
+                </div>
+                <div class="estimated-total">Total estimado <strong id="estimated-total" aria-live="polite">0
+                        COP</strong></div>
+                <p class="small muted">El total definitivo se calcula al guardar con las tarifas del catálogo.</p>
+                <button class="btn btn-primary">Guardar y revisar borrador</button>
+            </section>
+        </form>
+    </main>
+</body>
+
+</html>
