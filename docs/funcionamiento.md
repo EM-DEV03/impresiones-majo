@@ -6,6 +6,8 @@ La aplicación se conecta a la base existente `impresiones-majo`. El archivo `im
 
 Inicia MySQL y comprueba que `impresiones-majo` contiene las 17 tablas y los roles/permisos del SQL.
 
+Si actualizas una instalación anterior al tipo SERVICIO, respalda la base y sigue [Servicios desde Productos](servicios-en-productos.md) para aplicar la migración del ENUM con la aplicación detenida. No reimportes el esquema completo.
+
 Desde PowerShell, ejecuta [Start-ImpresionesMajo.ps1](../scripts/Start-ImpresionesMajo.ps1). Solicita credenciales de forma oculta y las pasa temporalmente al proceso Java. Si tu cuenta MySQL no tiene contraseña, pulsa Enter en esa pregunta.
 
 El primer administrador se crea solo si usuario está vacío y se proporcionan APP_ADMIN_USERNAME/PASSWORD. Si ya hay cuentas, el inicio no cambia sus contraseñas. Después del primer uso puedes omitir esas dos variables.
@@ -42,6 +44,8 @@ Desactivar conserva el registro y su historial; puedes activarlo nuevamente cuan
 ## Vender productos y servicios
 
 En Ventas → Nueva operación, agrega una línea por producto o servicio. Usa la tarifa/unidad configurada; una impresión de doble cara no multiplica caras automáticamente.
+
+Puedes crear servicios desde Productos eligiendo SERVICIO, UNIDAD o PAQUETE y precio. Se venden sin existencias, no aparecen en compras ni inventario físico y no generan movimientos al confirmar o anular. El catálogo anterior de Servicios de impresión conserva sus registros. Los nuevos servicios tienen costo directo cero en reportes; los anteriores mantienen su costo estimado.
 
 Selecciona pago, descuento y efectivo recibido cuando corresponda. Guarda el borrador y confirma después de revisarlo. Si falta stock, toda la confirmación se revierte. Puedes imprimir el comprobante interno.
 

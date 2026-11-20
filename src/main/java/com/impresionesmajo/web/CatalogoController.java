@@ -18,7 +18,34 @@ public class CatalogoController {
     @GetMapping("/nuevo") public String nuevo(@PathVariable String modulo,Model model){return form(modulo,null,model);}
     @GetMapping("/{id}/editar") public String editar(@PathVariable String modulo,@PathVariable long id,Model model){return form(modulo,id,model);}
     private String form(String modulo,Long id,Model model){var s=services.get(modulo);acceso.exigir(s.definicion().permisoGestion());model.addAttribute("def",s.definicion());model.addAttribute("registro",id==null?Map.of("activo",true):s.obtener(id));model.addAttribute("id",id);model.addAttribute("opciones",s.opciones());return "catalogo/form";}
-    @PostMapping("/guardar") public String guardar(@PathVariable String modulo,@RequestParam(required=false) Long id,@RequestParam Map<String,String> values,RedirectAttributes flash){services.get(modulo).guardar(id,values);flash.addFlashAttribute("exito","Registro guardado.");return "redirect:/catalogos/"+modulo;}
+    @PostMapping("/guardar") public String guardar(@PathVariable String modulo,@RequestParam(required=false) Long id,@RequestParam Map<String,String> values,RedirectAttributes flash,Model model,jakarta.servlet.http.HttpServletResponse response){
+        try {
+            services.get(modulo).guardar(id,values);
+            flash.addFlashAttribute("exito",modulo.equals("productos")?("SERVICIO".equals(values.get("tipo"))?"Servicio guardado.":"Producto guardado. Existencias actualizadas."):"Registro guardado.");
+            return "redirect:/catalogos/"+modulo;
+        } catch(IllegalArgumentException | org.springframework.dao.DuplicateKeyException ex) {
+            if(!modulo.equals("productos")) throw ex;
+            form(modulo,id,model);
+            var registro=new HashMap<String,Object>();
+            if(id!=null) registro.putAll(services.get(modulo).obtener(id));
+            for(var campo:services.get(modulo).definicion().campos()) {
+                String raw=values.get(campo.nombre());
+                Object value=raw;
+                if(campo.tipo().equals("checkbox")) value="true".equals(raw);
+                else if(campo.tipo().equals("reference")) {
+                    try {value=raw==null || raw.isBlank()?null:Long.valueOf(raw);} catch(NumberFormatException ignored) {value=null;}
+                }
+                registro.put(campo.nombre(),value);
+            }
+            registro.put("unidades_iniciales",values.get("unidades_iniciales"));
+            registro.put("costo_inicial",values.get("costo_inicial"));
+            model.addAttribute("registro",registro);
+            model.addAttribute("errorFormulario",ex instanceof org.springframework.dao.DuplicateKeyException?"Ya existe un producto con ese código o nombre. Revisa los datos.":ex.getMessage());
+            model.addAttribute("valoresIngresados",true);
+            response.setStatus(ex instanceof org.springframework.dao.DuplicateKeyException?409:400);
+            return "catalogo/form";
+        }
+    }
     @PostMapping("/{id}/estado") public String estado(@PathVariable String modulo,@PathVariable long id,@RequestParam boolean activo,RedirectAttributes flash){
         services.get(modulo).cambiarEstado(id,activo);
         flash.addFlashAttribute("exito",activo?"Registro activado.":"Registro desactivado. Se conserva su historial.");

@@ -17,7 +17,7 @@ public class InventarioController {
     /** Endpoint JSON sin caché usado por los formularios de operación. */
     @GetMapping("/disponibles") @ResponseBody
     public org.springframework.http.ResponseEntity<java.util.List<java.util.Map<String,Object>>> disponibles(){
-        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(inventario.existencias());
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(inventario.disponibles());
     }
     /** Renderiza saldos y movimientos cuando el usuario tiene permiso de auditoría. */
     @GetMapping public String index(@RequestParam(required=false) Long productoId,Model model){model.addAttribute("productos",inventario.existencias());model.addAttribute("productoId",productoId);if(acceso.tiene("MOVIMIENTOS_VER")) model.addAttribute("movimientos",inventario.movimientos(productoId));return "inventario";}

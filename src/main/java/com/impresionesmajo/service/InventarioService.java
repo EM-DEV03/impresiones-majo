@@ -19,8 +19,12 @@ public class InventarioService {
     }
     /** Devuelve el saldo actual de todos los productos visibles para el usuario. */
     public List<Map<String,Object>> existencias() {
+        return disponibles().stream().filter(p->!"SERVICIO".equals(p.get("tipo").toString())).toList();
+    }
+    /** Incluye servicios para actualizar el catálogo y las opciones de venta. */
+    public List<Map<String,Object>> disponibles() {
         acceso.exigir("PRODUCTOS_VER");
-        return jdbc.queryForList("SELECT id,codigo,nombre,unidad_medida,stock_actual,stock_minimo,activo FROM producto ORDER BY nombre");
+        return jdbc.queryForList("SELECT id,codigo,nombre,tipo,unidad_medida,stock_actual,stock_minimo,activo FROM producto ORDER BY nombre");
     }
     /** Consulta el historial reciente, opcionalmente filtrado por producto. */
     public List<Map<String,Object>> movimientos(Long productoId) {
@@ -32,6 +36,7 @@ public class InventarioService {
         acceso.exigir("STOCK_AJUSTAR"); Reglas.opcion(tipo,"AJUSTE_ENTRADA","AJUSTE_SALIDA");
         motivo=Reglas.texto(motivo,255,"Motivo"); cantidad=Reglas.cantidad(cantidad);
         var producto=productos.lock(productoId);
+        if("SERVICIO".equals(producto.getTipo())) throw new IllegalArgumentException("Los servicios no admiten ajustes de inventario.");
         if(!Boolean.TRUE.equals(producto.getActivo())) throw new IllegalArgumentException("El producto está inactivo.");
         if(tipo.equals("AJUSTE_ENTRADA")) costo=Reglas.dinero(costo);
         mover(producto,cantidad,tipo,null,null,motivo,costo,acceso.usuarioId());
@@ -41,6 +46,7 @@ public class InventarioService {
      * Solo debe invocarse desde una transacción con el producto bloqueado.
      */
     void mover(ProductoVO producto,BigDecimal cantidad,String tipo,Long compraId,Long ventaId,String motivo,BigDecimal costoEntrada,long usuarioId) {
+        if("SERVICIO".equals(producto.getTipo())) throw new IllegalArgumentException("Los servicios no generan movimientos de inventario.");
         // Una anulación debe devolver exactamente lo vendido, incluso en registros antiguos.
         cantidad="REVERSION_VENTA".equals(tipo)?Reglas.decimal(cantidad,3,true,"Cantidad"):Reglas.cantidad(cantidad);
         boolean entrada=Set.of("ENTRADA_COMPRA","REVERSION_VENTA","AJUSTE_ENTRADA").contains(tipo);

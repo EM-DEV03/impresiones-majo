@@ -28,3 +28,4 @@
 .form-check-input:checked{background-color:#365fc0;border-color:#365fc0}
 @media(max-width:760px){.brand{display:inline-flex;justify-content:flex-start;flex-wrap:nowrap;text-align:left;gap:12px}.brand-logo{width:58px;height:58px;border-radius:12px;border-width:2px}.brand-name{font-size:1.12rem}.brand-name span{font-size:.65rem}.brand-sub{display:none}.mobile-toggle{margin-top:10px}.retire-toolbar{align-items:flex-start;flex-direction:column}.login-logo{width:140px;height:140px}}
 @media print{.stock-panel{border:1px solid #ccc;background:#fff}.login-logo{width:80px;height:80px}}
+[data-physical-field][hidden],[data-service-help][hidden],[data-stock-action][hidden]{display:none!important}

@@ -27,7 +27,7 @@ public class OperacionController {
     @GetMapping("/{tipo:ventas|compras}/nueva") public String nueva(@PathVariable String tipo,Model model){
         acceso.exigir(tipo.equals("ventas")?"VENTAS_CREAR":"COMPRAS_GESTIONAR");
         model.addAttribute("tipo",tipo);model.addAttribute("operacion",new OperacionForm());
-        model.addAttribute("productos",jdbc.queryForList("SELECT id,nombre,codigo,precio_venta,stock_actual FROM producto WHERE activo=1"+(tipo.equals("ventas")?" AND tipo='MERCANCIA'":"")+" ORDER BY nombre"));
+        model.addAttribute("productos",jdbc.queryForList("SELECT id,nombre,codigo,tipo,precio_venta,stock_actual,unidad_medida FROM producto WHERE activo=1"+(tipo.equals("ventas")?" AND tipo IN ('MERCANCIA','SERVICIO')":" AND tipo<>'SERVICIO'")+" ORDER BY nombre"));
         model.addAttribute("servicios",tipo.equals("ventas")?jdbc.queryForList("SELECT id,nombre,precio_unitario,unidad_cobro FROM servicio WHERE activo=1 ORDER BY nombre"):java.util.List.of());
         model.addAttribute("proveedores",tipo.equals("compras")?jdbc.queryForList("SELECT id,nombre FROM proveedor WHERE activo=1 ORDER BY nombre"):java.util.List.of());return "operacion/form";
     }

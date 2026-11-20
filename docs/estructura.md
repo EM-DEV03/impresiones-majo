@@ -2,6 +2,7 @@
 
 ```text
 database/impresiones-majo.sql                 Referencia oficial existente
+database/2026-11-18-agregar-tipo-servicio.sql   Migración manual del tipo SERVICIO
 src/main/java/com/impresionesmajo/
   ImpresionesMajoApplication.java            Arranque y zona horaria
   model/vo/                            17 objetos, uno por tabla
@@ -14,6 +15,7 @@ src/main/resources/
   templates/                           Thymeleaf y fragmentos
   static/css/app.css                    Diseño adaptable e impresión
   static/js/app.js                      Formularios, líneas y estimaciones
+  static/images/majo-logo.png            Identidad visual
 src/test/java/.../                     Pruebas de negocio, MVC y servidor HTTP
 src/test/resources/                    Configuración y esquema H2 aislado
 scripts/                               Inicio y generadores reproducibles

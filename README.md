@@ -37,9 +37,13 @@ Los roles definidos por el SQL son `ADMINISTRADOR` y `VENDEDOR`. Los permisos se
 
 `producto.stock_actual` y `producto.costo_promedio` son el saldo operativo. No deben editarse directamente en MySQL.
 
+- Los productos nuevos se registran como `UNIDAD` o `PAQUETE`. El stock, los mínimos, los costos y los precios corresponden a esa presentación: vender 2 paquetes descuenta 2 paquetes completos. No hay conversión automática a piezas sueltas.
+- El formulario de producto permite registrar la cantidad inicial real y su costo. El mínimo de reposición solo activa una alerta; no agrega existencias. Las descripciones antiguas se conservan, aunque ya no se solicitan en el formulario de producto.
+- Productos, inventario y nueva venta consultan el stock al volver a la pestaña y cada 15 segundos mientras está visible. Si falla la consulta, la interfaz avisa que los valores pueden estar desactualizados. La confirmación siempre valida el saldo en la base de datos.
+- Una presentación `UNIDAD` o `PAQUETE` con existencias o historial no puede cambiarse por la otra. Para comercializar otra presentación se crea otro producto. Los registros antiguos con otras medidas requieren elegir explícitamente su equivalente al editarlos; sus cantidades no se convierten ni se alteran automáticamente.
 - Un borrador de compra no modifica existencias.
 - Al confirmar una compra se registra un movimiento `ENTRADA_COMPRA` por cada línea y se recalcula el costo promedio ponderado.
-- Al confirmar una venta se registra `SALIDA_VENTA` para cada producto. Los servicios no consumen productos automáticamente.
+- Al confirmar una venta se registra `SALIDA_VENTA` para cada producto físico. Los registros de tipo `SERVICIO` se venden sin existencias y no generan movimientos de inventario ni consumo automático de insumos.
 - Una venta confirmada puede anularse con permiso y motivo; la devolución se registra como `REVERSION_VENTA`.
 - Las entradas y salidas manuales se registran como `AJUSTE_ENTRADA` o `AJUSTE_SALIDA` y siempre requieren motivo. Las entradas requieren costo unitario.
 - No se permite stock negativo. Las cantidades nuevas de compras, ventas, ajustes y stock mínimo son enteras.
@@ -67,6 +71,8 @@ Para ejecutar el sistema no hay que crear la base ni importar el SQL otra vez. S
 4. Ejecutar el script de inicio indicado abajo.
 
 La aplicación no crea tablas, no ejecuta migraciones y no carga el archivo SQL al arrancar. [database/impresiones-majo.sql](database/impresiones-majo.sql) se conserva como referencia del esquema y como respaldo para preparar una instalación completamente nueva fuera de este entorno. No debe importarse sobre la base existente sin revisar antes sus datos.
+
+Para actualizar una instalación anterior al tipo `SERVICIO`, realiza un respaldo, detén la aplicación y aplica [2026-11-18-agregar-tipo-servicio.sql](database/2026-11-18-agregar-tipo-servicio.sql) con una cuenta autorizada para `ALTER`. Conserva las 17 tablas y los datos existentes. Después inicia la versión actualizada. Consulta [Servicios desde Productos](docs/servicios-en-productos.md) para el procedimiento y sus límites; publicar el código en GitHub no ejecuta esta migración.
 
 ## Ejecución local
 
@@ -157,6 +163,7 @@ docs/                              documentación funcional y técnica
 - [Modelo de datos](docs/modelo-datos.md)
 - [Arquitectura y estructura](docs/estructura.md)
 - [Verificación y límites](docs/verificacion.md)
+- [Servicios desde Productos y actualización de la base](docs/servicios-en-productos.md)
 
 ## Límites conocidos
 

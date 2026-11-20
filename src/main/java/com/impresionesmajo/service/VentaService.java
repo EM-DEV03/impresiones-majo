@@ -39,14 +39,15 @@ public class VentaService {
         var v=new VentaVO();v.setUsuarioId(acceso.usuarioId());v.setEstado("BORRADOR");v.setMetodoPago(form.getMetodoPago());v.setObservaciones(form.getObservaciones());
         var lines=new ArrayList<DetalleVentaVO>();BigDecimal subtotal=BigDecimal.ZERO;
         var keys=new HashSet<String>();
-        for(var l:form.getLineas()) {
+        // El mismo orden de bloqueo que la confirmación evita cruces entre ventas simultáneas.
+        for(var l:form.getLineas().stream().sorted(Comparator.comparing(OperacionForm.Linea::getProductoId,Comparator.nullsLast(Comparator.naturalOrder()))).toList()) {
             var d=new DetalleVentaVO();d.setCantidad(l.getCantidad());
             String key=(l.getProductoId()!=null?"P"+l.getProductoId():"S"+l.getServicioId());
             if(!keys.add(key)) throw new IllegalArgumentException("Unifica las cantidades de líneas repetidas.");
             if(l.getProductoId()!=null) {
-                var p=productos.findById(l.getProductoId()).orElseThrow(()->new IllegalArgumentException("Producto inexistente."));
-                if(!Boolean.TRUE.equals(p.getActivo()) || !"MERCANCIA".equals(p.getTipo())) throw new IllegalArgumentException("Solo se vende mercancía activa.");
-                d.setProductoId(p.getId());d.setDescripcionSnapshot(p.getNombre());d.setPrecioUnitario(p.getPrecioVenta());d.setCostoUnitarioSnapshot(p.getCostoPromedio());
+                var p=productos.lock(l.getProductoId());
+                if(!Boolean.TRUE.equals(p.getActivo()) || !Set.of("MERCANCIA","SERVICIO").contains(p.getTipo())) throw new IllegalArgumentException("Solo se vende mercancía o servicios activos.");
+                d.setProductoId(p.getId());d.setDescripcionSnapshot(p.getNombre());d.setPrecioUnitario(p.getPrecioVenta());d.setCostoUnitarioSnapshot("SERVICIO".equals(p.getTipo())?BigDecimal.ZERO:p.getCostoPromedio());
             } else {
                 var s=servicios.findById(l.getServicioId()).orElseThrow(()->new IllegalArgumentException("Servicio inexistente."));
                 if(!Boolean.TRUE.equals(s.getActivo())) throw new IllegalArgumentException("Servicio inactivo.");
@@ -74,9 +75,10 @@ public class VentaService {
         for(var d:lines) {
             if(d.getProductoId()!=null) {
                 var p=productos.lock(d.getProductoId());
-                if(!Boolean.TRUE.equals(p.getActivo()) || !"MERCANCIA".equals(p.getTipo())) throw new IllegalArgumentException("Producto no disponible para venta.");
-                d.setCostoUnitarioSnapshot(p.getCostoPromedio());detalles.update(d);
-                inventario.mover(p,d.getCantidad(),"SALIDA_VENTA",null,id,"Confirmación de venta",null,uid);
+                if(!Boolean.TRUE.equals(p.getActivo()) || !Set.of("MERCANCIA","SERVICIO").contains(p.getTipo())) throw new IllegalArgumentException("Producto o servicio no disponible para venta.");
+                boolean esServicio="SERVICIO".equals(p.getTipo());
+                d.setCostoUnitarioSnapshot(esServicio?BigDecimal.ZERO:p.getCostoPromedio());detalles.update(d);
+                if(!esServicio) inventario.mover(p,d.getCantidad(),"SALIDA_VENTA",null,id,"Confirmación de venta",null,uid);
             } else {
                 var s=servicios.lock(d.getServicioId());if(!Boolean.TRUE.equals(s.getActivo())) throw new IllegalArgumentException("Servicio inactivo.");
                 d.setCostoUnitarioSnapshot(s.getCostoUnitarioEstimado());detalles.update(d);
@@ -89,8 +91,10 @@ public class VentaService {
         acceso.exigir("VENTAS_ANULAR");motivo=Reglas.texto(motivo,500,"Motivo");var v=ventas.lock(id);
         if("ANULADA".equals(v.getEstado())) throw new IllegalArgumentException("La venta ya está anulada.");
         long uid=acceso.usuarioId();
-        if("CONFIRMADA".equals(v.getEstado())) for(var d:cargarLineas(id)) if(d.getProductoId()!=null)
-            inventario.mover(productos.lock(d.getProductoId()),d.getCantidad(),"REVERSION_VENTA",null,id,"Anulación de venta #"+id,d.getCostoUnitarioSnapshot(),uid);
+        if("CONFIRMADA".equals(v.getEstado())) for(var d:cargarLineas(id)) if(d.getProductoId()!=null) {
+            var p=productos.lock(d.getProductoId());
+            if(!"SERVICIO".equals(p.getTipo())) inventario.mover(p,d.getCantidad(),"REVERSION_VENTA",null,id,"Anulación de venta #"+id,d.getCostoUnitarioSnapshot(),uid);
+        }
         v.setEstado("ANULADA");v.setMotivoAnulacion("Usuario #"+uid+": "+Reglas.texto(motivo,470,"Motivo"));v.setFechaAnulacion(LocalDateTime.now());ventas.update(v);
     }
 }

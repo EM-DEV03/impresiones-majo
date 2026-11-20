@@ -4,7 +4,7 @@
 
 Windows, JDK 24.0.2 instalado, objetivo de compilación Java 17. Spring Boot 4.1.2 y Maven Wrapper 3.10.0 existentes, conservados. Paquete principal confirmado: com.impresionesmajo.
 
-El SQL se leyó íntegramente y no se modificó. La implementación utiliza las 17 tablas existentes.
+La implementación utiliza las 17 tablas existentes. El esquema de referencia y el esquema H2 admiten ahora SERVICIO en producto.tipo. La actualización de una base existente se realiza con la [migración manual](../database/2026-11-18-agregar-tipo-servicio.sql), sin reimportar el esquema completo.
 
 ## Pruebas
 
@@ -32,6 +32,24 @@ Los listados de operaciones, movimientos y finanzas muestran los últimos 500 re
 Consumo automático por servicio, anulación de compras, contabilidad fiscal y devoluciones parciales requieren ampliar el modelo y no se simulan.
 
 ## Resultado registrado
+
+### Actualización del 20 de noviembre de 2026
+
+Comando ejecutado: `.\mvnw.cmd -B verify`, con JAVA_HOME apuntando al JDK 24 instalado y objetivo de compilación Java 17. Resultado: **BUILD SUCCESS** y JAR ejecutable generado.
+
+| Suite | Pruebas | Fallos | Errores | Omitidas |
+|---|---:|---:|---:|---:|
+| NegocioIntegrationTest | 38 | 0 | 0 | 0 |
+| HttpSmokeTest | 1 | 0 | 0 | 0 |
+| ImpresionesMajoApplicationTests | 1 | 0 | 0 | 0 |
+| ProductoTipoMigracionTest | 1 | 0 | 0 | 0 |
+| Total | 41 | 0 | 0 | 0 |
+
+La suite incorpora las regresiones de presentación UNIDAD/PAQUETE, stock inicial, servicios desde Productos, venta y anulación sin movimientos físicos, exclusión de compras/ajustes y protección del historial al cambiar tipos. La prueba de migración comprueba en H2 la conservación de registros, el valor por defecto y la reejecución del ALTER. El editor no reportó errores.
+
+Esta ejecución no conectó con MySQL/MariaDB ni aplicó la migración a la base del negocio. Su aplicación y la validación con el motor real siguen siendo pasos de la instalación descritos en [Servicios desde Productos](servicios-en-productos.md).
+
+### Verificación anterior: 14 de noviembre de 2026
 
 Verificación ejecutada el 14 de noviembre de 2026 después de documentar las capas, servicios y reglas de inventario. También se aisló la referencia del proveedor demo en la preparación de cada prueba para evitar dependencia del orden de ejecución.
 

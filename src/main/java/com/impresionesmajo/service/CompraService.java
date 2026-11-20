@@ -29,10 +29,12 @@ public class CompraService {
         acceso.exigir("COMPRAS_GESTIONAR");form.validar();
         if(form.getProveedorId()==null || jdbc.queryForList("SELECT id FROM proveedor WHERE id=? AND activo=1",form.getProveedorId()).isEmpty()) throw new IllegalArgumentException("Selecciona un proveedor activo.");
         var lines=new ArrayList<DetalleCompraVO>();var seen=new HashSet<Long>();BigDecimal subtotal=BigDecimal.ZERO;
-        for(var l:form.getLineas()) {
+        // Bloquear en orden estable también protege los cambios de tipo frente a borradores nuevos.
+        for(var l:form.getLineas().stream().sorted(Comparator.comparing(OperacionForm.Linea::getProductoId,Comparator.nullsLast(Comparator.naturalOrder()))).toList()) {
             if(l.getProductoId()==null || !seen.add(l.getProductoId())) throw new IllegalArgumentException("Incluye productos distintos en la compra.");
-            var p=productos.findById(l.getProductoId()).orElseThrow(()->new IllegalArgumentException("Producto inexistente."));
+            var p=productos.lock(l.getProductoId());
             if(!Boolean.TRUE.equals(p.getActivo())) throw new IllegalArgumentException("Producto inactivo.");
+            if("SERVICIO".equals(p.getTipo())) throw new IllegalArgumentException("Los servicios no se ingresan como compras de inventario.");
             var d=new DetalleCompraVO();d.setProductoId(p.getId());d.setCantidad(l.getCantidad());d.setCostoUnitario(Reglas.dinero(l.getCostoUnitario()));
             d.setSubtotal(Reglas.redondear(d.getCantidad().multiply(d.getCostoUnitario())));subtotal=subtotal.add(d.getSubtotal());lines.add(d);
         }

@@ -1,6 +1,6 @@
 # Modelo de datos
 
-Fuente: [impresiones-majo.sql](../database/impresiones-majo.sql), conservado sin cambios. Cada columna se representa en camelCase en Java.
+Fuente: [impresiones-majo.sql](../database/impresiones-majo.sql), actualizado para admitir SERVICIO en producto.tipo. Para instalaciones existentes se incluye la [migración del ENUM](../database/2026-11-18-agregar-tipo-servicio.sql); no se añaden tablas. Cada columna se representa en camelCase en Java.
 
 | Tabla | VO / DAO | Relaciones y función |
 |---|---|---|
@@ -33,7 +33,7 @@ Los VO incluyen constructor vacío y completo, getters, setters y `toString` lim
 | Entidad | Estados / transición | Efecto de negocio |
 |---|---|---|
 | `compra` | `BORRADOR` → `CONFIRMADA` | La confirmación registra entradas de inventario; no existe anulación de compra. |
-| `venta` | `BORRADOR` → `CONFIRMADA` → `ANULADA` | Confirmar descuenta productos; anular registra reversiones. |
+| `venta` | `BORRADOR` → `CONFIRMADA` → `ANULADA` | Confirmar descuenta productos físicos; anular registra reversiones físicas. Los servicios no generan movimientos. |
 | `gasto` | `REGISTRADO` → `ANULADO` | Se conserva el registro y se excluye de reportes vigentes. |
 | `aporte_capital` | `REGISTRADO` → `ANULADO` | Se conserva el historial financiero. |
 | `inversion_equipo` | `REGISTRADA` → `ANULADA` | Se conserva la adquisición y se excluye de indicadores vigentes. |
@@ -49,4 +49,4 @@ Los VO incluyen constructor vacío y completo, getters, setters y `toString` lim
 - Usuario N:M rol mediante usuario_rol; rol N:M permiso mediante rol_permiso.
 - Usuario 1:N compras, ventas, movimientos, gastos, aportes e inversiones.
 
-Se respetan las claves foráneas, `CHECK`, precisión decimal y `ENUM` originales. No hay tablas de framework, migraciones automáticas ni columnas añadidas. Cualquier cambio de columna requiere actualizar el SQL, el esquema H2, los VO/DAO y las pruebas antes de modificar los servicios.
+Se conservan las claves foráneas, `CHECK` y precisión decimal. El ENUM producto.tipo admite MERCANCIA, INSUMO y SERVICIO. Los nuevos servicios se referencian mediante producto_id en detalle_venta; los anteriores conservan servicio_id y su historial. No hay tablas de framework, migraciones automáticas ni columnas añadidas. Cualquier cambio de columna requiere revisar el SQL, el esquema H2, los VO/DAO y las pruebas junto con los servicios.

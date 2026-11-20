@@ -80,6 +80,126 @@ class NegocioIntegrationTest {
         data.put("precio_venta","1.500");data.put("stock_minimo","9");data.put("activo","true");
         data.put("unidades_iniciales",unidades);data.put("costo_inicial","1.000");return data;
     }
+    Map<String,String> servicioEnProductos(String codigo) {
+        var data=productoInicial(codigo,"0");
+        data.put("tipo","SERVICIO");data.put("nombre","Trabajo de prueba "+codigo);data.put("precio_venta","500");
+        data.remove("stock_minimo");data.remove("unidades_iniciales");data.remove("costo_inicial");
+        return data;
+    }
+    long crearServicioEnProductos(String codigo) {
+        productos.guardar(null,servicioEnProductos(codigo));return id("producto","codigo",codigo);
+    }
+    @Test void servicioSeCreaEditaConsultaYDesactivaDesdeProductos() throws Exception {
+        var data=servicioEnProductos("TEST-MAJO-SERV-HTTP");
+        var request=post("/catalogos/productos/guardar").with(csrf());data.forEach(request::param);
+        mvc.perform(request).andExpect(status().is3xxRedirection());
+        long p=id("producto","codigo","TEST-MAJO-SERV-HTTP");
+        assertThat(stock(p)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT proveedor_preferido_id FROM producto WHERE id=?",Long.class,p)).isNull();
+        assertThat(jdbc.queryForObject("SELECT stock_minimo FROM producto WHERE id=?",BigDecimal.class,p)).isEqualByComparingTo("0");
+        var html=mvc.perform(get("/catalogos/productos/"+p+"/editar")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(html).contains("value=\"SERVICIO\"", "selected=\"selected\"")
+            .containsPattern("(?s)<select[^>]*name=\"proveedor_preferido_id\"[^>]*disabled")
+            .containsPattern("(?s)<input[^>]*name=\"stock_minimo\"[^>]*disabled");
+        data.put("id",String.valueOf(p));data.put("nombre","Escaneo de prueba");data.put("precio_venta","600");
+        request=post("/catalogos/productos/guardar").with(csrf());data.forEach(request::param);
+        mvc.perform(request).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/catalogos/productos")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Escaneo de prueba")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Servicio · sin inventario")));
+        mvc.perform(get("/ventas/nueva")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Escaneo de prueba (servicio · sin inventario)")));
+        mvc.perform(get("/inventario/disponibles")).andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.codigo == 'TEST-MAJO-SERV-HTTP')].tipo").value(org.hamcrest.Matchers.contains("SERVICIO")));
+        mvc.perform(get("/compras/nueva")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Escaneo de prueba"))));
+        mvc.perform(get("/inventario")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Escaneo de prueba"))));
+        mvc.perform(post("/catalogos/productos/"+p+"/estado").with(csrf()).param("activo","false")).andExpect(status().is3xxRedirection());
+        assertThat(jdbc.queryForObject("SELECT activo FROM producto WHERE id=?",Boolean.class,p)).isFalse();
+        mvc.perform(get("/ventas/nueva")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Escaneo de prueba"))));
+    }
+    @Test void ventaDeServicioSinStockApareceEnIngresosHistorialYReportes() throws Exception {
+        long p=crearServicioEnProductos("TEST-MAJO-SERV-VENTA");
+        long v=ventas.crear(venta(p,"20"));ventas.confirmar(v);
+        assertThat(ventas.obtener(v).getTotal()).isEqualByComparingTo("10000");
+        assertThat(ventas.lineas(v).get(0).getCostoUnitarioSnapshot()).isEqualByComparingTo("0");
+        assertThat(stock(p)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimiento_inventario WHERE producto_id=?",Long.class,p)).isZero();
+        var resumen=reportes.resumen(LocalDate.now(),LocalDate.now());
+        assertThat((BigDecimal)resumen.get("Ventas netas")).isEqualByComparingTo("10000");
+        assertThat((BigDecimal)resumen.get("Valor actual del inventario")).isEqualByComparingTo("0");
+        assertThat(reportes.diarios(LocalDate.now(),LocalDate.now())).hasSize(1);
+        assertThat(reportes.masVendidos(LocalDate.now(),LocalDate.now())).extracting(r->r.get("nombre")).contains("Trabajo de prueba TEST-MAJO-SERV-VENTA");
+        var panel=reportes.dashboard();
+        assertThat((BigDecimal)panel.get("ventasHoy")).isEqualByComparingTo("10000");
+        assertThat(((List<?>)panel.get("alertas")).toString()).doesNotContain("TEST-MAJO-SERV-VENTA");
+        assertThat(inventario.existencias()).extracting(r->r.get("codigo")).doesNotContain("TEST-MAJO-SERV-VENTA");
+        assertThat((Long)panel.get("servicios")).isEqualTo(jdbc.queryForObject("SELECT COUNT(*) FROM servicio WHERE activo=1",Long.class)+1);
+        mvc.perform(get("/ventas/"+v)).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Trabajo de prueba TEST-MAJO-SERV-VENTA")));
+        mvc.perform(get("/reportes/exportar").param("desde",LocalDate.now().toString()).param("hasta",LocalDate.now().toString()))
+            .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("Ventas netas;10000")));
+    }
+    @Test void ventaMixtaYAnulacionSoloMuevenMercanciaYConservanServiciosAnteriores() {
+        entrada("5");long p=crearServicioEnProductos("TEST-MAJO-SERV-MIX");
+        var form=venta(producto,"2");
+        var nuevo=new OperacionForm.Linea();nuevo.setProductoId(p);nuevo.setCantidad(new BigDecimal("3"));
+        var anterior=new OperacionForm.Linea();anterior.setServicioId(servicio);anterior.setCantidad(BigDecimal.ONE);
+        form.setLineas(List.of(form.getLineas().get(0),nuevo,anterior));
+        long v=ventas.crear(form);ventas.confirmar(v);
+        assertThat(stock(producto)).isEqualByComparingTo("3");assertThat(stock(p)).isEqualByComparingTo("0");
+        assertThat(ventas.lineas(v)).hasSize(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimiento_inventario WHERE venta_id=?",Long.class,v)).isEqualTo(1);
+        productos.cambiarEstado(p,false);
+        ventas.anular(v,"Devolución de venta mixta");
+        assertThat(stock(producto)).isEqualByComparingTo("5");assertThat(stock(p)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimiento_inventario WHERE venta_id=?",Long.class,v)).isEqualTo(2);
+        assertThat((BigDecimal)reportes.resumen(LocalDate.now(),LocalDate.now()).get("Ventas netas")).isEqualByComparingTo("0");
+    }
+    @Test void serviciosRechazanExistenciasComprasYAjustesYNormalizanCamposFisicos() {
+        var data=servicioEnProductos("TEST-MAJO-SERV-REGLAS");data.put("unidades_iniciales","1");data.put("costo_inicial","100");
+        assertThatThrownBy(()->productos.guardar(null,data)).hasMessageContaining("no tienen existencias");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM producto WHERE codigo='TEST-MAJO-SERV-REGLAS'",Long.class)).isZero();
+        data.put("unidades_iniciales","0");data.put("proveedor_preferido_id","999999");data.put("stock_minimo","99");
+        productos.guardar(null,data);long p=id("producto","codigo","TEST-MAJO-SERV-REGLAS");
+        assertThat(jdbc.queryForObject("SELECT proveedor_preferido_id FROM producto WHERE id=?",Long.class,p)).isNull();
+        assertThat(jdbc.queryForObject("SELECT stock_minimo FROM producto WHERE id=?",BigDecimal.class,p)).isEqualByComparingTo("0");
+        for(String tipo:List.of("AJUSTE_ENTRADA","AJUSTE_SALIDA"))
+            assertThatThrownBy(()->inventario.ajustar(p,BigDecimal.ONE,tipo,"Prueba",BigDecimal.TEN)).hasMessageContaining("no admiten ajustes");
+        var compra=venta(p,"2");compra.setProveedorId(proveedor);compra.getLineas().get(0).setCostoUnitario(BigDecimal.TEN);
+        assertThatThrownBy(()->compras.crear(compra)).hasMessageContaining("no se ingresan como compras");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM compra",Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimiento_inventario WHERE producto_id=?",Long.class,p)).isZero();
+    }
+    @Test void servicioInactivoNoSeVendeNiConfirmaYNoDuplicaConfirmaciones() {
+        long p=crearServicioEnProductos("TEST-MAJO-SERV-ESTADO");long v=ventas.crear(venta(p,"1"));
+        productos.cambiarEstado(p,false);
+        assertThatThrownBy(()->ventas.crear(venta(p,"1"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(()->ventas.confirmar(v)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(ventas.obtener(v).getEstado()).isEqualTo("BORRADOR");
+        productos.cambiarEstado(p,true);ventas.confirmar(v);
+        assertThatThrownBy(()->ventas.confirmar(v)).hasMessageContaining("ya fue procesada");
+        assertThat(stock(p)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM movimiento_inventario",Long.class)).isZero();
+    }
+    @Test void cambioEntreServicioYFisicoNoReinterpretaExistenciasNiBorradores() {
+        var data=productoInicial("TEST-MAJO-SERV-CAMBIO","2");productos.guardar(null,data);
+        long p=id("producto","codigo","TEST-MAJO-SERV-CAMBIO");
+        data.put("tipo","SERVICIO");data.put("unidades_iniciales","0");
+        assertThatThrownBy(()->productos.guardar(p,data)).hasMessageContaining("producto físico y servicio");
+        assertThat(stock(p)).isEqualByComparingTo("2");
+        long s=crearServicioEnProductos("TEST-MAJO-SERV-DRAFT");ventas.crear(venta(s,"1"));
+        var edit=servicioEnProductos("TEST-MAJO-SERV-DRAFT");edit.put("tipo","MERCANCIA");edit.put("stock_minimo","0");
+        assertThatThrownBy(()->productos.guardar(s,edit)).hasMessageContaining("producto físico y servicio");
+        assertThat(jdbc.queryForObject("SELECT tipo FROM producto WHERE id=?",String.class,s)).isEqualTo("SERVICIO");
+        var fisico=productoInicial("TEST-MAJO-SERV-COMPRA","0");productos.guardar(null,fisico);
+        long f=id("producto","codigo","TEST-MAJO-SERV-COMPRA");
+        var compra=venta(f,"1");compra.setProveedorId(proveedor);compra.getLineas().get(0).setCostoUnitario(BigDecimal.TEN);compras.crear(compra);
+        fisico.put("tipo","SERVICIO");
+        assertThatThrownBy(()->productos.guardar(f,fisico)).hasMessageContaining("producto físico y servicio");
+    }
     @Test void unidadesInicialesComprasVentasYAnulacionesConservanElSaldo() throws Exception {
         var data=productoInicial("TEST-MAJO-INIT","9");productos.guardar(null,data);long p=id("producto","codigo","TEST-MAJO-INIT");
         assertThat(stock(p)).isEqualByComparingTo("9");
@@ -91,9 +211,52 @@ class NegocioIntegrationTest {
         ventas.anular(v,"Devolución");assertThat(stock(p)).isEqualByComparingTo("14");
         data.put("unidades_iniciales","0");data.put("stock_minimo","3");productos.guardar(p,data);
         assertThat(stock(p)).isEqualByComparingTo("14");
-        mvc.perform(get("/ventas/nueva")).andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("(stock: 14)")));
+        mvc.perform(get("/ventas/nueva")).andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("(stock: 14 unidades)")));
         mvc.perform(get("/inventario/disponibles")).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("TEST-MAJO-INIT")));
+    }
+    @Test void paquetesConservanElSaldoEnCatalogoInventarioYVentas() throws Exception {
+        var data=productoInicial("TEST-MAJO-PACK","9");data.put("unidad_medida","paquete");
+        productos.guardar(null,data);long p=id("producto","codigo","TEST-MAJO-PACK");
+        assertThat(jdbc.queryForObject("SELECT unidad_medida FROM producto WHERE id=?",String.class,p)).isEqualTo("PAQUETE");
+        long v=ventas.crear(venta(p,"2"));ventas.confirmar(v);
+        assertThat(stock(p)).isEqualByComparingTo("7");
+        for(String ruta:List.of("/catalogos/productos","/inventario","/ventas/nueva"))
+            mvc.perform(get(ruta)).andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("7 paquetes")));
+        mvc.perform(get("/inventario/disponibles")).andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.codigo == 'TEST-MAJO-PACK')].stock_actual").value(org.hamcrest.Matchers.contains(7.0)));
+        mvc.perform(post("/inventario/ajustar").with(csrf()).param("productoId",String.valueOf(p))
+            .param("cantidad","1").param("tipo","AJUSTE_SALIDA").param("motivo","Consumo")).andExpect(status().is3xxRedirection());
+        mvc.perform(post("/ventas/"+v+"/anular").with(csrf()).param("motivo","Devolución")).andExpect(status().is3xxRedirection());
+        assertThat(stock(p)).isEqualByComparingTo("8");
+        assertThat(jdbc.queryForObject("SELECT stock_posterior FROM movimiento_inventario WHERE producto_id=? ORDER BY id DESC LIMIT 1",BigDecimal.class,p)).isEqualByComparingTo("8");
+    }
+    @Test void presentacionInvalidaYCambioDeUnidadConOperacionesNoSeGuardan() {
+        var data=productoInicial("TEST-MAJO-UNIT","3");
+        data.put("unidad_medida","CAJA");
+        assertThatThrownBy(()->productos.guardar(null,data)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM producto WHERE codigo='TEST-MAJO-UNIT'",Integer.class)).isZero();
+        data.put("unidad_medida","UNIDAD");productos.guardar(null,data);long p=id("producto","codigo","TEST-MAJO-UNIT");
+        data.put("unidades_iniciales","0");data.put("unidad_medida","PAQUETE");
+        assertThatThrownBy(()->productos.guardar(p,data)).hasMessageContaining("presentación diferente");
+        assertThat(stock(p)).isEqualByComparingTo("3");
+        inventario.ajustar(p,new BigDecimal("3"),"AJUSTE_SALIDA","Consumo",null);
+        assertThatThrownBy(()->productos.guardar(p,data)).hasMessageContaining("presentación diferente");
+        assertThat(jdbc.queryForObject("SELECT unidad_medida FROM producto WHERE id=?",String.class,p)).isEqualTo("UNIDAD");
+    }
+    @Test void formularioLimpioConservaDatosSiLaEntradaInicialEsInvalida() throws Exception {
+        mvc.perform(get("/catalogos/productos/nuevo")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"unidad_medida\"")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"PAQUETE\"")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"UNIDAD\"")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("name=\"descripcion\""))));
+        var data=productoInicial("TEST-MAJO-ERROR","4");data.remove("costo_inicial");
+        var request=post("/catalogos/productos/guardar").with(csrf());data.forEach(request::param);
+        mvc.perform(request).andExpect(status().isBadRequest())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"TEST-MAJO-ERROR\"")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"4\"")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"1.500\"")));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM producto WHERE codigo='TEST-MAJO-ERROR'",Integer.class)).isZero();
     }
     @Test void stockMinimoNoSumaYEntradaInicialInvalidaNoCreaProducto() {
         productos.guardar(null,productoInicial("TEST-MAJO-MIN","0"));assertThat(stock(id("producto","codigo","TEST-MAJO-MIN"))).isEqualByComparingTo("0");
@@ -137,7 +300,7 @@ class NegocioIntegrationTest {
         assertThatThrownBy(()->inventario.ajustar(producto,new BigDecimal("0.5"),"AJUSTE_ENTRADA","Conteo",BigDecimal.TEN))
             .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("entero");
         var data=new HashMap<String,String>();data.put("categoria_id",String.valueOf(jdbc.queryForObject("SELECT categoria_id FROM producto WHERE id=?",Long.class,producto)));
-        data.put("codigo","PAP-001");data.put("nombre","Resma");data.put("tipo","MERCANCIA");data.put("unidad_medida","RESMA");
+        data.put("codigo","PAP-001");data.put("nombre","Resma");data.put("tipo","MERCANCIA");data.put("unidad_medida","UNIDAD");
         data.put("precio_venta","1.300");data.put("stock_minimo","0.5");data.put("activo","true");
         assertThatThrownBy(()->productos.guardar(producto,data)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("entero");
         assertThat(stock(producto)).isEqualByComparingTo("0");
@@ -168,7 +331,7 @@ class NegocioIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT valor FROM gasto",BigDecimal.class)).isEqualByComparingTo("1300");
         mvc.perform(post("/catalogos/productos/guardar").with(csrf()).param("id",String.valueOf(producto))
             .param("categoria_id",String.valueOf(jdbc.queryForObject("SELECT categoria_id FROM producto WHERE id=?",Long.class,producto)))
-            .param("codigo","PAP-001").param("nombre","Resma").param("tipo","MERCANCIA").param("unidad_medida","RESMA")
+            .param("codigo","PAP-001").param("nombre","Resma").param("tipo","MERCANCIA").param("unidad_medida","UNIDAD")
             .param("precio_venta","2.500,50").param("stock_minimo","2").param("activo","true")).andExpect(status().is3xxRedirection());
         assertThat(jdbc.queryForObject("SELECT precio_venta FROM producto WHERE id=?",BigDecimal.class,producto)).isEqualByComparingTo("2500.50");
     }

@@ -12,12 +12,13 @@ Este documento describe las invariantes que deben mantenerse al cambiar servicio
 - Productos y servicios distintos por línea; repetir artículo exige reunir las cantidades.
 - Productos, categorías, proveedores y servicios se pueden activar/desactivar desde su listado. La desactivación conserva sus existencias y referencias históricas.
 - Eliminar requiere permiso de gestión y solo se permite para registros sin referencias, incluidos borradores. Los productos además deben tener stock cero. Las claves foráneas impiden borrar registros usados; no se eliminan movimientos ni documentos en cascada.
-- Nuevos productos empiezan en stock/costo cero según defaults. Solo compras y ajustes calculan existencias y costo; los campos enviados por el cliente no pueden modificarlos desde el catálogo.
-- Solo MERCANCIA activa se vende directamente. INSUMO se compra y consume mediante ajustes.
+- Nuevos productos físicos empiezan en stock/costo cero según defaults. El alta permite existencias iniciales con costo y permiso STOCK_AJUSTAR: se registran mediante un ajuste de entrada auditado dentro de la misma transacción. El mínimo de reposición no agrega stock; las ediciones del catálogo no modifican directamente el saldo.
+- MERCANCIA y SERVICIO activos se venden directamente. INSUMO se compra y consume mediante ajustes. Los registros SERVICIO no tienen proveedor, existencias iniciales ni mínimo de reposición; se excluyen de compras, ajustes y alertas físicas.
+- No se puede cambiar entre producto físico y servicio si hay existencias, movimientos, compras o ventas, incluidos borradores. Tampoco se puede alternar UNIDAD y PAQUETE con existencias o historial. Debe crearse otro registro.
 
 ## Compras
 
-El borrador exige proveedor y productos activos y no altera inventario. Confirmar bloquea cabecera y productos, valida de nuevo y registra ENTRADA_COMPRA por línea.
+El borrador exige proveedor y productos físicos activos y no altera inventario. Los registros SERVICIO se rechazan. Confirmar bloquea cabecera y productos, valida de nuevo y registra ENTRADA_COMPRA por línea.
 
 Costo promedio = (stock anterior × costo anterior + cantidad × costo neto de entrada) / stock posterior. El descuento global se distribuye proporcionalmente en el costo de entrada; el promedio se conserva a dos decimales.
 
@@ -31,7 +32,7 @@ El bloqueo de la compra ocurre antes de leer sus líneas. Cada producto se bloqu
 
 El borrador obtiene precios del catálogo y guarda descripción y precio históricos. No reserva stock. El precio queda fijado al crear el borrador; el costo histórico se actualiza al costo vigente cuando se confirma.
 
-Cada línea identifica producto XOR servicio. Confirmar bloquea cabecera y productos, comprueba disponibilidad y estado, descuenta mercancía y registra SALIDA_VENTA. Los servicios generan ingreso/costo estimado sin consumir automáticamente productos.
+Cada línea identifica producto XOR servicio. Los nuevos servicios usan producto_id con producto.tipo=SERVICIO; el catálogo anterior mantiene servicio_id. Confirmar bloquea cabecera y productos, comprueba estado y disponibilidad física, descuenta mercancía y registra SALIDA_VENTA solo para artículos físicos. Los servicios no requieren stock ni generan movimientos al confirmar o anular. Los nuevos servicios tienen costo directo cero; los del catálogo anterior conservan su costo estimado. Ninguno consume insumos automáticamente.
 
 Si falla una línea, la transacción revierte todos los cambios, incluidos movimientos y detalles de costo. Las ventas concurrentes compiten por los mismos bloqueos; no pueden consumir la misma última unidad.
 
@@ -64,7 +65,7 @@ Los reportes aceptan intervalos inclusivos de hasta cinco años. Ventas y compra
 - Flujo neto de operaciones vigentes = ventas + aportes − compras − gastos − inversiones.
 - Valor del inventario = stock actual × costo promedio actual; no es valoración histórica.
 
-El costo de servicios es estimado. Mermas y ajustes no se incorporan automáticamente como gasto adicional. Estos indicadores sirven para gestión, no sustituyen contabilidad fiscal ni un libro histórico de caja.
+El costo de los servicios del catálogo anterior es estimado; el de los servicios creados desde Productos es cero porque su formulario no solicita costo. Esto limita la interpretación del margen. Mermas y ajustes no se incorporan automáticamente como gasto adicional. Estos indicadores sirven para gestión, no sustituyen contabilidad fiscal ni un libro histórico de caja.
 
 ## Seguridad
 

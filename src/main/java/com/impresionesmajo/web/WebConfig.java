@@ -20,6 +20,17 @@ public class WebConfig {
     public String cantidad(BigDecimal value) {
         return value==null?"":value.stripTrailingZeros().toPlainString();
     }
+    /** Presenta el saldo en la misma presentación que se compra y vende. */
+    public String existencias(BigDecimal value,String unidad) {
+        String medida=unidad==null?"":unidad.trim().toUpperCase(Locale.ROOT);
+        boolean singular=value!=null && value.compareTo(BigDecimal.ONE)==0;
+        String etiqueta=switch(medida) {
+            case "UNIDAD" -> singular?"unidad":"unidades";
+            case "PAQUETE" -> singular?"paquete":"paquetes";
+            default -> medida.toLowerCase(Locale.ROOT);
+        };
+        return cantidad(value)+" "+etiqueta;
+    }
     /** Formatea importes sin modificar el valor almacenado. */
     public String importe(Object value) {
         var f=NumberFormat.getNumberInstance(Locale.forLanguageTag("es-CO"));

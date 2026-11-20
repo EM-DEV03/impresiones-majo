@@ -7,7 +7,7 @@
 | Acceso | Inicio/cierre de sesión, BCrypt, estado y permisos |
 | Dashboard | Ventas del día, catálogo activo, alertas y ventas recientes |
 | Categorías y proveedores | Crear, editar, activar/desactivar y eliminar si no tienen relaciones |
-| Productos | Categoría, proveedor, código, unidad, tipo, precio y mínimo |
+| Productos | Mercancía, insumos y servicios; categoría, código, presentación y precio. Proveedor, existencias y mínimo solo para artículos físicos |
 | Servicios | Impresión, copia, escaneo, ampliación y otros; tarifas y costo estimado |
 | Compras | Borrador con varias líneas, revisión y confirmación |
 | Ventas | Mercancía y servicios, descuento, pago, cambio, confirmación y anulación |
@@ -47,7 +47,7 @@ Los permisos se validan por código dentro de los servicios. Los nombres no debe
 - Java 17+; Maven Wrapper incluido.
 - MySQL con InnoDB y el esquema ya importado. El SQL declara MySQL 8.0.16+ y MariaDB 10.4+; la aplicación usa MySQL Connector/J.
 - Navegador actual con JavaScript; validación de negocio siempre en servidor.
-- Usuario MySQL con SELECT, INSERT y UPDATE; DELETE sobre usuario_rol para cambiar roles y sobre producto, categoria, proveedor y servicio para eliminar registros sin uso. No se necesitan permisos DDL.
+- Usuario MySQL con SELECT, INSERT y UPDATE; DELETE sobre usuario_rol para cambiar roles y sobre producto, categoria, proveedor y servicio para eliminar registros sin uso. La ejecución habitual no necesita permisos DDL. La migración manual del tipo SERVICIO requiere una cuenta autorizada para ALTER; consulta [la actualización](servicios-en-productos.md).
 - UTF-8, interfaz española, COP y zona horaria America/Bogota.
 - Bootstrap local y diseño adaptable.
 

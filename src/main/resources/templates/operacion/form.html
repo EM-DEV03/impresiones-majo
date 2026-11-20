@@ -31,12 +31,12 @@
                 </div>
                 <div class="operation-lines">
                     <div class="operation-line">
-                        <div class="field"><label>Producto<select class="form-select product-choice"
+                        <div class="field"><label><span th:text="${tipo == 'ventas' ? 'Producto o servicio' : 'Producto'}"></span><select class="form-select product-choice"
                                     name="lineas[0].productoId">
-                                    <option value="">Seleccionar producto…</option>
+                                    <option value="" th:text="${tipo == 'ventas' ? 'Seleccionar producto o servicio…' : 'Seleccionar producto…'}"></option>
                                     <option th:each="p:${productos}" th:value="${p.id}"
-                                        th:attr="data-precio=${p.precio_venta},data-stock=${p.stock_actual}"
-                                        th:text="${p.codigo + ' · ' + p.nombre + ' (stock: ' + @formato.cantidad(p.stock_actual) + ')'}">
+                                        th:attr="data-precio=${p.precio_venta},data-stock=${p.stock_actual},data-unidad=${p.unidad_medida},data-tipo=${p.tipo}"
+                                        th:text="${p.codigo + ' · ' + p.nombre + (p.tipo == 'SERVICIO' ? ' (servicio · sin inventario)' : ' (stock: ' + @formato.existencias(p.stock_actual,p.unidad_medida) + ')')}">
                                     </option>
                                 </select></label></div>
                         <div class="field" th:if="${tipo == 'ventas'}"><label>O servicio<select
@@ -58,8 +58,8 @@
                     </div>
                 </div>
                 <p class="small muted">Selecciona un solo artículo por línea y reúne las cantidades del mismo artículo.
-                    Máximo 100 líneas.</p>
-                <p class="small muted stock-refresh-status" th:if="${tipo == 'ventas'}" aria-live="polite">Las existencias se descuentan al confirmar la venta. Guardar un borrador no las descuenta.</p>
+                    Máximo 100 líneas. La cantidad y el precio corresponden a la presentación elegida para cada producto.</p>
+                <p class="small muted" th:if="${tipo == 'ventas'}">Las existencias se descuentan al confirmar la venta. Guardar un borrador no las descuenta.</p><p class="small muted stock-refresh-status" th:if="${tipo == 'ventas'}" aria-live="polite">Existencias consultadas al abrir la página.</p>
             </section>
             <section class="surface mt-4">
                 <div class="form-grid">

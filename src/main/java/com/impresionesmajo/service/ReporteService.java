@@ -26,7 +26,7 @@ public class ReporteService {
         m.put("Ventas netas",ventas);m.put("Compras",compras);m.put("Gastos",gastos);m.put("Aportes de capital",aportes);m.put("Inversiones en equipos",inversiones);m.put("Costo vendido estimado",costo);
         m.put("Margen bruto estimado",ventas.subtract(costo));m.put("Resultado operativo estimado",ventas.subtract(costo).subtract(gastos));
         m.put("Flujo neto de operaciones vigentes",ventas.add(aportes).subtract(compras).subtract(gastos).subtract(inversiones));
-        m.put("Valor actual del inventario",sum("SELECT COALESCE(SUM(stock_actual*costo_promedio),0) FROM producto"));return m;
+        m.put("Valor actual del inventario",sum("SELECT COALESCE(SUM(stock_actual*costo_promedio),0) FROM producto WHERE tipo<>'SERVICIO'"));return m;
     }
     /** Agrupa las ventas confirmadas por día de confirmación. */
     public List<Map<String,Object>> diarios(LocalDate desde,LocalDate hasta) {
@@ -42,9 +42,9 @@ public class ReporteService {
     public Map<String,Object> dashboard() {
         acceso.exigir("DASHBOARD_VER");var m=new HashMap<String,Object>();boolean todas=acceso.tiene("VENTAS_VER_TODAS");long uid=acceso.usuarioId();
         m.put("ventasHoy",sum("SELECT COALESCE(SUM(total),0) FROM venta WHERE estado='CONFIRMADA' AND fecha_confirmacion>=? AND fecha_confirmacion<? AND (?=1 OR usuario_id=?)",LocalDate.now().atStartOfDay(),LocalDate.now().plusDays(1).atStartOfDay(),todas,uid));
-        m.put("productos",jdbc.queryForObject("SELECT COUNT(*) FROM producto WHERE activo=1",Long.class));
-        m.put("servicios",jdbc.queryForObject("SELECT COUNT(*) FROM servicio WHERE activo=1",Long.class));
-        m.put("alertas",jdbc.queryForList("SELECT codigo,nombre,stock_actual,stock_minimo FROM producto WHERE activo=1 AND stock_actual<=stock_minimo ORDER BY stock_actual,nombre LIMIT 20"));
+        m.put("productos",jdbc.queryForObject("SELECT COUNT(*) FROM producto WHERE activo=1 AND tipo<>'SERVICIO'",Long.class));
+        m.put("servicios",jdbc.queryForObject("SELECT (SELECT COUNT(*) FROM servicio WHERE activo=1)+(SELECT COUNT(*) FROM producto WHERE activo=1 AND tipo='SERVICIO')",Long.class));
+        m.put("alertas",jdbc.queryForList("SELECT codigo,nombre,stock_actual,stock_minimo FROM producto WHERE activo=1 AND tipo<>'SERVICIO' AND stock_actual<=stock_minimo ORDER BY stock_actual,nombre LIMIT 20"));
         m.put("recientes",jdbc.queryForList("SELECT id,fecha,estado,total FROM venta WHERE (?=1 OR usuario_id=?) ORDER BY id DESC LIMIT 8",todas,uid));return m;
     }
     private BigDecimal sum(String sql,Object... args){return jdbc.queryForObject(sql,BigDecimal.class,args);}
